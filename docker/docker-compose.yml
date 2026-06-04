@@ -3,13 +3,18 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     ports:
-      - "9002:9002"
-      - "9001:9001"
+      - "9002:9002"      # S3 API
+      - "9001:9001"      # Web Console
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
   clickhouse:
     image: clickhouse/clickhouse-server:latest
@@ -44,18 +49,18 @@ services:
   spark:
     image: apache/spark:latest
     container_name: spark-master
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
     ports:
-      - "8081:8080"
+      - "8081:8080"      # Spark UI (на хосте 8081, чтобы не конфликтовать с Airflow)
       - "7077:7077"
     environment:
       - SPARK_MODE=master
     volumes:
       - ./scripts:/opt/spark/scripts
       - ./data:/opt/spark/data
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
 
   airflow-init:
-    image: apache/airflow:2.8.0-python3.11
+    build: .
     environment:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
@@ -63,8 +68,10 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
       - ./scripts:/opt/airflow/scripts
+      - /var/run/docker.sock:/var/run/docker.sock   # доступ к Docker
     depends_on:
       - postgres
+    user: root
     entrypoint: /bin/bash
     command:
       - -c
@@ -79,7 +86,8 @@ services:
           --password airflow
 
   webserver:
-    image: apache/airflow:2.8.0-python3.11
+    build: .
+    user: root
     environment:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
@@ -87,6 +95,7 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
       - ./scripts:/opt/airflow/scripts
+      - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8080:8080"
     depends_on:
@@ -96,7 +105,8 @@ services:
     restart: always
 
   scheduler:
-    image: apache/airflow:2.8.0-python3.11
+    build: .
+    user: root
     environment:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
@@ -104,6 +114,7 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
       - ./scripts:/opt/airflow/scripts
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - postgres
       - spark

@@ -3,11 +3,16 @@ import random
 from datetime import datetime, timedelta
 import os
 
+# Определяем корень проекта (скрипт лежит в scripts/)
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)   # поднимаемся в корень
+data_raw_dir = os.path.join(project_root, 'data', 'raw')
+os.makedirs(data_raw_dir, exist_ok=True)
+
 def generate_transactions(start_date, end_date, num_per_day=500):
-    """Генерация транзакций для диапазона дат"""
     current = start_date
     transactions = []
-    product_ids = list(range(1, 10))  # 10 товаров
+    product_ids = list(range(1, 10))
     while current <= end_date:
         for _ in range(num_per_day):
             trans = {
@@ -25,10 +30,10 @@ def generate_transactions(start_date, end_date, num_per_day=500):
 if __name__ == '__main__':
     start = datetime(2026, 1, 1)
     end = datetime(2026, 1, 31)
-    data = generate_transactions(start, end, num_per_day=500)  # ~15 500 строк
-    os.makedirs('../data/raw', exist_ok=True)
-    with open('../data/raw/sales_jan.csv', 'w', newline='') as f:
+    data = generate_transactions(start, end, num_per_day=500)
+    file_path = os.path.join(data_raw_dir, 'sales_jan.csv')
+    with open(file_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=['transaction_id','date','product_id','quantity','price','customer_id'])
         writer.writeheader()
         writer.writerows(data)
-    print("Файл data/raw/sales_jan.csv создан")
+    print(f" Файл создан: {file_path}")
